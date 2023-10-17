@@ -28,16 +28,16 @@ card_icon = {
 df = pd.read_excel("distribuicao.xlsx")
 
 
-# df_other = df.loc[df["CY23 Others BUDGET"]>0, ["Instituição", "CY23 Others BUDGET"]]
-# df_IADB_OAS = df.loc[df["TOTAL BUDGET IADB/OAS"]>0, ["Instituição", "TOTAL BUDGET IADB/OAS"]]
-# df_IADC_OAS = df.loc[df["TOTAL BUDGET IADC/OAS"]>0, ["Instituição", "TOTAL BUDGET IADC/OAS"]]
-# df_DoD = df.loc[df["DOD CY23 Cash flow YTD"]>0, ["Instituição", "DOD CY23 Cash flow YTD"]]
+# df_other = df.loc[df["CY23 Others BUDGET"]>0, ["Institution", "CY23 Others BUDGET"]]
+# df_IADB_OAS = df.loc[df["TOTAL BUDGET IADB/OAS"]>0, ["Institution", "TOTAL BUDGET IADB/OAS"]]
+# df_IADC_OAS = df.loc[df["TOTAL BUDGET IADC/OAS"]>0, ["Institution", "TOTAL BUDGET IADC/OAS"]]
+# df_DoD = df.loc[df["DOD CY23 Cash flow YTD"]>0, ["Institution", "DOD CY23 Cash flow YTD"]]
 
 
-df_other = df.groupby("Instituição")["CY23 Others BUDGET"].sum()
-df_IADB_OAS = df.groupby("Instituição")["TOTAL BUDGET IADB/OAS"].sum()
-df_IADC_OAS = df.groupby("Instituição")["TOTAL BUDGET IADC/OAS"].sum()
-df_DoD = df.groupby("Instituição")["DOD CY23 Cash flow YTD"].sum()
+df_other = df.groupby("Institution")["CY23 Others BUDGET"].sum()
+df_IADB_OAS = df.groupby("Institution")["TOTAL BUDGET IADB/OAS"].sum()
+df_IADC_OAS = df.groupby("Institution")["TOTAL BUDGET IADC/OAS"].sum()
+df_DoD = df.groupby("Institution")["DOD CY23 Cash flow YTD"].sum()
 
 # dic_1={"IADB":{"other":111387.11, "OAS":652080.38, "DoD": 0.0}, "IADC":{"other":0.0, "OAS":218500.0, "DoD":1898097.48}}
 
@@ -64,7 +64,7 @@ fig = go.Figure(
 
 
 
-# fig_fundos = px.bar(df, x=df["Instituição"], y=[df["CY23 Others BUDGET"].sum(), df["TOTAL BUDGET IADB/OAS"].sum(), df["TOTAL BUDGET IADC/OAS"].sum()])
+# fig_fundos = px.bar(df, x=df["Institution"], y=[df["CY23 Others BUDGET"].sum(), df["TOTAL BUDGET IADB/OAS"].sum(), df["TOTAL BUDGET IADC/OAS"].sum()])
 
 
 
@@ -79,9 +79,9 @@ app.layout = html.Div(
                         ThemeSwitchAIO(aio_id="theme", themes=[url_theme1, url_theme2]),
                         dbc.Card([
                         html.H2("Financial Report", style = {"font-family": "Voltair", "font-size": "50px", "color": "orange"},id="h1"), html.Br(),
-                        html.H5("Instituição"),
-                        dcc.Checklist(df["Instituição"].value_counts().index.to_list(),
-                        value=df["Instituição"].value_counts().index.to_list(), id="Check-instituição", inputStyle={"margin-right": "5px", "margin-left": "20px"}),
+                        html.H5("Institution"),
+                        dcc.Checklist(df["Institution"].value_counts().index.to_list(),
+                        value=df["Institution"].value_counts().index.to_list(), id="Check-institution", inputStyle={"margin-right": "5px", "margin-left": "20px"}),
                         html.H5("Categories", style = {"margin-top": "30px"}), html.Br(),
                         dcc.RadioItems(df["Category"].unique(), value=df["Category"].unique()[0], id="Category", inputStyle={"margin-right": "5px", "margin-left": "20px"}, inline=True), html.Br(),
                         dbc.CardGroup([
@@ -120,14 +120,17 @@ app.layout = html.Div(
 @app.callback(
             Output("category", "figure"),
             Output("objeto", "figure"),
-            Input("Check-instituição", "value"),
+            Input("Check-institution", "value"),
             Input("Category", "value"),
             Input(ThemeSwitchAIO.ids.switch("theme"), "value")
             )
-def render_graph(instituição, categoria, toggle):
+def render_graph(institution, categoria, toggle):
+    # print(institution)
+    # print(categoria)
     template = template_theme1 if toggle else template_theme2
-    df_1 = df[df["Instituição"].isin(instituição)]
-    df_2 = df_1[df_1["Category"].isin(categoria)]
+    print(df[df["Institution"] in institution])
+    df_1 = df[df["Institution"] in institution]
+    df_2 = df[df["Category"]==categoria]
     fig_category = px.bar(df_2, x=df_2["Category"], y=[df_2["CY23 Others BUDGET"], df_2["TOTAL BUDGET IADB/OAS"], df_2["TOTAL BUDGET IADC/OAS"], df[""]])
     fig_objeto = px.bar(df, x=df["Object"], y=[df["CY23 Others BUDGET"], df["TOTAL BUDGET IADB/OAS"], df["TOTAL BUDGET IADC/OAS"]])
     
