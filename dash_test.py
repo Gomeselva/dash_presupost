@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 base_fig_theme = "bootstrap"
-load_figure_template([base_fig_theme, base_fig_theme + "_dark"])
+load_figure_template([base_fig_theme + "_dark", base_fig_theme])
 
 df = pd.read_excel("distribuicao.xlsx")
 
@@ -31,8 +31,9 @@ card_icon = {
     "margin": "auto",
 }
 
-institution_list = df["Institution"].value_counts().index.to_list()
+institution_list = df["Institution"].unique()
 category_list = df["Category"].unique()
+object_list = df["Object"].unique()
 
 app.layout = html.Div(
     children = [
@@ -57,11 +58,22 @@ app.layout = html.Div(
                         }
                     ),
                     html.H5("Category", style={"margin-top": "30px"}),
-                    html.Br(),
-                    dcc.RadioItems(
+                    dcc.Checklist(
                         category_list,
                         id="category-filter",
-                        value=category_list[0],
+                        value=category_list,
+                        inputStyle={
+                            "margin-right": "5px",
+                            "margin-left": "20px"
+                        },
+                        inline=True
+                    ),
+                    html.Br(),
+                    html.H5("Object", style={"margin-top": "30px"}),
+                    dcc.Checklist(
+                        object_list,
+                        id="object-filter",
+                        value=object_list,
                         inputStyle={
                             "margin-right": "5px",
                             "margin-left": "20px"
@@ -103,29 +115,41 @@ app.layout = html.Div(
                             color="warming",
                             style={
                                 "maxwidth": 50,
-                                "height": 100,
+                                # "height": 100,
                                 "margin-left": "-10px"
                             }
                         )
                     ])
                 ],
                 style={
-                    "height": "90vh",
+                    "height": "100vh",
                     "margin": "10px",
                     "padding": "10px"
                 })
-            ], sm=2),
+            ], width=2),
             dbc.Col([
-                html.Div(children=[
+                # html.Div(children=[
+                #     dcc.Graph(
+                #         id="institution-fig",
+                #         config={"displayModeBar": False},
+                #         style={"display": "inline-block"}
+                #     ),
+                #     dcc.Graph(
+                #         id="category",
+                #         config={"displayModeBar": False},
+                #         style={"display": "inline-block"}
+                #     )
+                # ]),
+                dbc.Row([
                     dcc.Graph(
                         id="institution-fig",
                         config={"displayModeBar": False},
-                        style={"display": "inline-block"}
-                    ),
+                    )
+                ]),
+                dbc.Row([
                     dcc.Graph(
                         id="category",
                         config={"displayModeBar": False},
-                        style={"display": "inline-block"}
                     )
                 ]),
                 dbc.Row([
@@ -134,25 +158,24 @@ app.layout = html.Div(
                         config={"displayModeBar": False},
                     )
                 ])
-            ], sm=10),
+            ], width=10),
         ])
     ]
 )
 
-@app.callback(
+@callback(
     Output("institution-fig", "figure"),
     Output("category", "figure"),
     Output("objeto", "figure"),
     Input("check-institution", "value"),
     Input("category-filter", "value"),
-    Input("color-mode-switch", "value"),
+    Input("object-filter", "value"),
 )
 
-def render_graph(institution, category, switch_on):
-    template = pio.templates[base_fig_theme] if switch_on else pio.templates[base_fig_theme + "_dark"]
-
-    filtered_category = df[df["Category"] == category]
+def render_graph(institution, category, obj):
     institution_filter = df["Institution"].isin(institution)
+    category_filter = df["Category"].isin(category)
+    object_filter = df["Object"].isin(obj)
 
     fig_institution = px.histogram(
         df[institution_filter],
@@ -165,41 +188,52 @@ def render_graph(institution, category, switch_on):
         ],
         barmode="group",
         text_auto='.2s',
-        template=template
     )
 
     fig_category = px.histogram(
-        filtered_category, 
-        x=filtered_category["Category"],
-        y=[
-            filtered_category["CY23 Others BUDGET"],
-            filtered_category["TOTAL BUDGET IADB/OAS"],
-            filtered_category["TOTAL BUDGET IADC/OAS"]
+        df[category_filter],
+        y="Category",
+        x=[
+            "CY23 Others BUDGET",
+            "TOTAL BUDGET IADB/OAS",
+            "TOTAL BUDGET IADC/OAS",
         ],
         text_auto='.2s',
-        template=template
     )
 
     fig_objeto = px.histogram(
-        df,
-        x=df["Object"],
-        y=[
-            df["CY23 Others BUDGET"],
-            df["TOTAL BUDGET IADB/OAS"],
-            df["TOTAL BUDGET IADC/OAS"]
+        df[object_filter],
+        y="Object",
+        x=[
+            "CY23 Others BUDGET",
+            "TOTAL BUDGET IADB/OAS",
+            "TOTAL BUDGET IADC/OAS",
         ],
         text_auto='.2s',
-        template=template
     )
 
-    for figure in(fig_institution, fig_category, fig_objeto):
-        figure.update_layout(
-            margin=dict(l=0, r=0, t=20, b=20),
-            height=400,
-            title_x=0.5
-        )
-
     return fig_institution, fig_category, fig_objeto
+
+@callback(
+    Output("institution-fig", "figure", allow_duplicate=True),
+    Output("category", "figure", allow_duplicate=True),
+    Output("objeto", "figure", allow_duplicate=True),
+    Input("color-mode-switch", "value"),
+    prevent_initial_call=True
+)
+
+def update_theme(switch_on):
+    template = pio.templates[base_fig_theme] if switch_on else pio.templates[base_fig_theme + "_dark"]
+
+    patched_institution_fig = Patch()
+    patched_category_fig = Patch()
+    patched_objeto_fig = Patch()
+
+    patched_institution_fig["layout"]["template"] = template
+    patched_category_fig["layout"]["template"] = template
+    patched_objeto_fig["layout"]["template"] = template
+
+    return patched_institution_fig, patched_category_fig,patched_objeto_fig
 
 clientside_callback(
     """
