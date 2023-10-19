@@ -1,47 +1,35 @@
 from datetime import timedelta, datetime, date
 import os
 
-import dash
-from dash import html, dcc 
+from dash import html, dcc, Dash, Input, Output, Patch, callback, clientside_callback 
 import dash_bootstrap_components as dbc
-from dash_bootstrap_templates import load_figure_template, ThemeSwitchAIO
+from dash_bootstrap_templates import load_figure_template
 from dash.dependencies import Input, Output
+import plotly.io as pio
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-"""Syles"""
-url_theme1 =dbc.themes.VAPOR
-url_theme2 =dbc.themes.FLATLY
-template_theme1 = "vapor"
-template_theme2 = "flatly"
+base_fig_theme = "bootstrap"
+load_figure_template([base_fig_theme, base_fig_theme + "_dark"])
+
+df = pd.read_excel("distribuicao.xlsx")
+
+dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
+app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME, dbc_css])
+
+color_mode_switch = html.Span([
+    dbc.Label(className="fa fa-moon", html_for="switch"),
+    dbc.Switch(id="color-mode-switch", value=False, className="d-inline-block ms-1", persistence=True),
+    dbc.Label(className="fa fa-sun", html_for="switch"),
+])
+
 card_icon = {
     "color": "white",
     "textAlign": "center",
     "fontSize": 30,
     "margin": "auto",
 }
-
-
-df = pd.read_excel("distribuicao.xlsx")
-
-df_other = df.groupby("Institution")["CY23 Others BUDGET"].sum()
-df_IADB_OAS = df.groupby("Institution")["TOTAL BUDGET IADB/OAS"].sum()
-df_IADC_OAS = df.groupby("Institution")["TOTAL BUDGET IADC/OAS"].sum()
-df_DoD = df.groupby("Institution")["DOD CY23 Cash flow YTD"].sum()
-
-fig = go.Figure(
-    data = [
-        go.Bar(x=df_IADB_OAS.index, y=df_IADB_OAS.values, name=df_IADB_OAS.name, hovertemplate="%{y:.2s}"),
-        go.Bar(x=df_other.index, y=df_other.values, name=df_other.name, hovertemplate="%{y:.2s}"),
-        go.Bar(x=df_IADC_OAS.index, y=df_IADC_OAS.values, name=df_IADC_OAS.name, hovertemplate="%{y:.2s}"),
-        go.Bar(x=df_DoD.index, y=df_DoD.values, name=df_DoD.name, hovertemplate="%{y:.2s}"),
-    ]
-)
-
-fig.update_layout(template='plotly_dark')
-
-app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 institution_list = df["Institution"].value_counts().index.to_list()
 category_list = df["Category"].unique()
@@ -50,7 +38,7 @@ app.layout = html.Div(
     children = [
         dbc.Row([
             dbc.Col([
-                ThemeSwitchAIO(aio_id="theme", themes=[url_theme2, url_theme2]),
+                color_mode_switch,
                 dbc.Card([
                     html.H2("Financial Report", id="h1", style = {
                         # "font-family": "Helvetica", 
@@ -128,12 +116,23 @@ app.layout = html.Div(
                 })
             ], sm=2),
             dbc.Col([
-                dbc.Row([
-                    dbc.Col(dcc.Graph(figure=fig)),
-                    dbc.Col(dcc.Graph(id="category"))
+                html.Div(children=[
+                    dcc.Graph(
+                        id="institution-fig",
+                        config={"displayModeBar": False},
+                        style={"display": "inline-block"}
+                    ),
+                    dcc.Graph(
+                        id="category",
+                        config={"displayModeBar": False},
+                        style={"display": "inline-block"}
+                    )
                 ]),
                 dbc.Row([
-                    dcc.Graph(id="objeto")
+                    dcc.Graph(
+                        id="objeto",
+                        config={"displayModeBar": False},
+                    )
                 ])
             ], sm=10),
         ])
@@ -141,44 +140,79 @@ app.layout = html.Div(
 )
 
 @app.callback(
+    Output("institution-fig", "figure"),
     Output("category", "figure"),
     Output("objeto", "figure"),
     Input("check-institution", "value"),
     Input("category-filter", "value"),
-    Input(ThemeSwitchAIO.ids.switch("theme"), "value")
+    Input("color-mode-switch", "value"),
 )
 
-def render_graph(institution, category, toggle):
-    template = template_theme1 if toggle else template_theme2
-    filtered_institutions = df[df["Institution"].isin(institution)]
-    filtered_category = df[df["Category"]==category]
+def render_graph(institution, category, switch_on):
+    template = pio.templates[base_fig_theme] if switch_on else pio.templates[base_fig_theme + "_dark"]
 
-    fig_category = px.bar(filtered_category, 
-                        x=filtered_category["Category"],
-                        y=[
-                            filtered_category["CY23 Others BUDGET"],
-                            filtered_category["TOTAL BUDGET IADB/OAS"],
-                            filtered_category["TOTAL BUDGET IADC/OAS"]
-                        ],
-                        text_auto='.2s')
+    filtered_category = df[df["Category"] == category]
+    institution_filter = df["Institution"].isin(institution)
 
-    fig_objeto = px.bar(df,
-                        x=df["Object"],
-                        y=[
-                            df["CY23 Others BUDGET"],
-                            df["TOTAL BUDGET IADB/OAS"],
-                            df["TOTAL BUDGET IADC/OAS"]
-                        ],
-                        text_auto='.2s')
+    fig_institution = px.histogram(
+        df[institution_filter],
+        x="Institution",
+        y=[
+            "CY23 Others BUDGET",
+            "TOTAL BUDGET IADB/OAS",
+            "TOTAL BUDGET IADC/OAS",
+            "DOD CY23 Cash flow YTD"
+        ],
+        barmode="group",
+        text_auto='.2s',
+        template=template
+    )
 
-    for figure in (fig_category, fig_objeto):
+    fig_category = px.histogram(
+        filtered_category, 
+        x=filtered_category["Category"],
+        y=[
+            filtered_category["CY23 Others BUDGET"],
+            filtered_category["TOTAL BUDGET IADB/OAS"],
+            filtered_category["TOTAL BUDGET IADC/OAS"]
+        ],
+        text_auto='.2s',
+        template=template
+    )
+
+    fig_objeto = px.histogram(
+        df,
+        x=df["Object"],
+        y=[
+            df["CY23 Others BUDGET"],
+            df["TOTAL BUDGET IADB/OAS"],
+            df["TOTAL BUDGET IADC/OAS"]
+        ],
+        text_auto='.2s',
+        template=template
+    )
+
+    for figure in(fig_institution, fig_category, fig_objeto):
         figure.update_layout(
             margin=dict(l=0, r=0, t=20, b=20),
-            height=500,
-            template=template
+            height=400,
+            title_x=0.5
         )
 
-    return fig_category, fig_objeto
+    return fig_institution, fig_category, fig_objeto
+
+clientside_callback(
+    """
+    switchOn => {       
+       switchOn
+         ? document.documentElement.setAttribute('data-bs-theme', 'light')
+         : document.documentElement.setAttribute('data-bs-theme', 'dark')
+       return window.dash_clientside.no_update
+    }
+    """,
+    Output("color-mode-switch", "id"),
+    Input("color-mode-switch", "value"),
+)
 
 if __name__ == "__main__":
     app.run_server(debug=True)
