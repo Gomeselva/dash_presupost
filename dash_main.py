@@ -153,7 +153,9 @@ app.layout = html.Div(
                 style={
                     "height": "100vh",
                     "margin": "10px",
-                    "padding": "10px"
+                    "padding": "10px",
+                    "position": "sticky",
+                    "top": "0",
                 })
             ], width=2),
             dbc.Col([
